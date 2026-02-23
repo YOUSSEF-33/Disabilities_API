@@ -1,0 +1,96 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum DisabilityType {
+  VISUAL
+  HEARING
+  PHYSICAL
+  COGNITIVE
+  SPEECH
+  OTHER
+}
+
+enum ServiceStatus {
+  PENDING
+  ACCEPTED
+  COMPLETED
+  CANCELLED
+}
+
+model User {
+  id                Int             @id @default(autoincrement())
+  email             String          @unique
+  phoneNumber       String          @unique
+  firstName         String
+  lastName          String
+  username          String          @unique
+  password          String
+  isAdmin           Boolean         @default(false)
+  disabilityType    DisabilityType?
+  disabilityDetails String?
+  isVolunteer       Boolean         @default(false)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  volunteerProfile           VolunteerProfile?
+  serviceRequestsAsUser      ServiceRequest[]  @relation("UserRequests")
+  serviceRequestsAsVolunteer ServiceRequest[]  @relation("VolunteerRequests")
+  appointmentsAsUser         Appointment[]     @relation("UserAppointments")
+  appointmentsAsVolunteer    Appointment[]     @relation("VolunteerAppointments")
+  resources                  Resource[]
+}
+
+model VolunteerProfile {
+  id          Int      @id @default(autoincrement())
+  userId      Int      @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skills      String[]
+  bio         String?
+  isAvailable Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ServiceRequest {
+  id          Int           @id @default(autoincrement())
+  title       String
+  description String
+  userId      Int
+  user        User          @relation("UserRequests", fields: [userId], references: [id], onDelete: Cascade)
+  volunteerId Int?
+  volunteer   User?         @relation("VolunteerRequests", fields: [volunteerId], references: [id])
+  status      ServiceStatus @default(PENDING)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model Appointment {
+  id          Int           @id @default(autoincrement())
+  title       String
+  description String?
+  userId      Int
+  user        User          @relation("UserAppointments", fields: [userId], references: [id], onDelete: Cascade)
+  volunteerId Int
+  volunteer   User          @relation("VolunteerAppointments", fields: [volunteerId], references: [id])
+  scheduledAt DateTime
+  status      ServiceStatus @default(PENDING)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model Resource {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String
+  url         String?
+  category    String
+  createdById Int
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
