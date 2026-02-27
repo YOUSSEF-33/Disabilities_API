@@ -38,22 +38,32 @@ model User {
   updatedAt         DateTime        @updatedAt
 
   volunteerProfile           VolunteerProfile?
-  serviceRequestsAsUser      ServiceRequest[]  @relation("UserRequests")
-  serviceRequestsAsVolunteer ServiceRequest[]  @relation("VolunteerRequests")
-  appointmentsAsUser         Appointment[]     @relation("UserAppointments")
-  appointmentsAsVolunteer    Appointment[]     @relation("VolunteerAppointments")
+  serviceRequestsAsUser      ServiceRequest[]   @relation("UserRequests")
+  serviceRequestsAsVolunteer ServiceRequest[]   @relation("VolunteerRequests")
+  appointmentsAsUser         Appointment[]      @relation("UserAppointments")
+  appointmentsAsVolunteer    Appointment[]      @relation("VolunteerAppointments")
   resources                  Resource[]
+  givenReviews               Review[]           @relation("UserGivenReviews")
+  sentMessages               Message[]          @relation("SentMessages")
+  receivedMessages           Message[]          @relation("ReceivedMessages")
+  emergencyContacts          EmergencyContact[]
+  sosalerts                  SOSAlert[]
+  volunteerBadges            VolunteerBadge[]
 }
 
 model VolunteerProfile {
-  id          Int      @id @default(autoincrement())
-  userId      Int      @unique
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  skills      String[]
-  bio         String?
-  isAvailable Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            Int      @id @default(autoincrement())
+  userId        Int      @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skills        String[]
+  bio           String?
+  isAvailable   Boolean  @default(true)
+  averageRating Float    @default(0.0)
+  reviewCount   Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  reviews Review[] @relation("VolunteerReviews")
 }
 
 model ServiceRequest {
@@ -65,8 +75,13 @@ model ServiceRequest {
   volunteerId Int?
   volunteer   User?         @relation("VolunteerRequests", fields: [volunteerId], references: [id])
   status      ServiceStatus @default(PENDING)
+  isUrgent    Boolean       @default(false)
+  latitude    Float?
+  longitude   Float?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
+
+  review Review?
 }
 
 model Appointment {
@@ -81,6 +96,8 @@ model Appointment {
   status      ServiceStatus @default(PENDING)
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
+
+  review Review?
 }
 
 model Resource {
@@ -91,6 +108,99 @@ model Resource {
   category    String
   createdById Int
   createdBy   User     @relation(fields: [createdById], references: [id])
+  tags        Tag[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+model Review {
+  id               Int              @id @default(autoincrement())
+  rating           Int
+  comment          String?
+  reviewerId       Int
+  reviewer         User             @relation("UserGivenReviews", fields: [reviewerId], references: [id])
+  volunteerId      Int
+  volunteer        VolunteerProfile @relation("VolunteerReviews", fields: [volunteerId], references: [id])
+  serviceRequestId Int?             @unique
+  serviceRequest   ServiceRequest?  @relation(fields: [serviceRequestId], references: [id])
+  appointmentId    Int?             @unique
+  appointment      Appointment?     @relation(fields: [appointmentId], references: [id])
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+}
+
+model Message {
+  id               Int      @id @default(autoincrement())
+  content          String
+  senderId         Int
+  sender           User     @relation("SentMessages", fields: [senderId], references: [id])
+  receiverId       Int
+  receiver         User     @relation("ReceivedMessages", fields: [receiverId], references: [id])
+  serviceRequestId Int?
+  appointmentId    Int?
+  isRead           Boolean  @default(false)
+  createdAt        DateTime @default(now())
+}
+
+model Tag {
+  id        Int        @id @default(autoincrement())
+  name      String     @unique
+  resources Resource[]
+}
+
+model EmergencyContact {
+  id          Int    @id @default(autoincrement())
+  name        String
+  phoneNumber String
+  userId      Int
+  user        User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model SOSAlert {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  latitude  Float
+  longitude Float
+  status    String   @default("ACTIVE") // ACTIVE, RESOLVED
+  createdAt DateTime @default(now())
+}
+
+model Location {
+  id        Int                    @id @default(autoincrement())
+  name      String
+  address   String
+  latitude  Float
+  longitude Float
+  features  AccessibilityFeature[]
+  createdAt DateTime               @default(now())
+  updatedAt DateTime               @updatedAt
+}
+
+model AccessibilityFeature {
+  id          Int      @id @default(autoincrement())
+  locationId  Int
+  location    Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  type        String // e.g., "Ramp", "Elevator", "Braille Signs"
+  description String?
+  rating      Int      @default(0)
+}
+
+model Badge {
+  id          Int              @id @default(autoincrement())
+  name        String           @unique
+  description String
+  iconUrl     String?
+  volunteers  VolunteerBadge[]
+}
+
+model VolunteerBadge {
+  id          Int      @id @default(autoincrement())
+  volunteerId Int
+  volunteer   User     @relation(fields: [volunteerId], references: [id], onDelete: Cascade)
+  badgeId     Int
+  badge       Badge    @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+  awardedAt   DateTime @default(now())
+
+  @@unique([volunteerId, badgeId])
 }

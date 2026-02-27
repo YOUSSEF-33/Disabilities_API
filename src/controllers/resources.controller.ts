@@ -10,20 +10,33 @@ const resourceSelect = {
     createdAt: true,
     updatedAt: true,
     createdBy: { select: { id: true, firstName: true, lastName: true } },
+    tags: { select: { id: true, name: true } },
 };
 
 // ─── Create Resource (Admin) ──────────────────────────────────────────────────
 export const createResource = async (req: Request, res: Response) => {
     try {
         const createdById = req.user.id;
-        const { title, description, url, category } = req.body;
+        const { title, description, url, category, tags } = req.body;
 
         if (!title || !description || !category) {
             return res.status(400).json({ message: "title, description, and category are required" });
         }
 
         const resource = await prisma.resource.create({
-            data: { title, description, url: url ?? null, category, createdById },
+            data: {
+                title,
+                description,
+                url: url ?? null,
+                category,
+                createdById,
+                tags: tags && Array.isArray(tags) ? {
+                    connectOrCreate: tags.map((tag: string) => ({
+                        where: { name: tag },
+                        create: { name: tag },
+                    })),
+                } : undefined,
+            },
             select: resourceSelect,
         });
 
@@ -40,8 +53,21 @@ export const getAllResources = async (req: Request, res: Response) => {
         const limit = Math.min(Number(req.query.limit) || 10, 100);
         const skip = (page - 1) * limit;
         const category = req.query.category as string | undefined;
+        const tag = req.query.tag as string | undefined;
+        const search = req.query.search as string | undefined;
 
-        const where = category ? { category: { contains: category, mode: "insensitive" as const } } : {};
+        const where: any = {
+            AND: [
+                category ? { category: { contains: category, mode: "insensitive" as const } } : {},
+                tag ? { tags: { some: { name: { contains: tag, mode: "insensitive" as const } } } } : {},
+                search ? {
+                    OR: [
+                        { title: { contains: search, mode: "insensitive" as const } },
+                        { description: { contains: search, mode: "insensitive" as const } },
+                    ]
+                } : {},
+            ]
+        };
 
         const [resources, total] = await Promise.all([
             prisma.resource.findMany({ where, skip, take: limit, select: resourceSelect, orderBy: { createdAt: "desc" } }),
@@ -70,7 +96,7 @@ export const getResourceById = async (req: Request, res: Response) => {
 export const updateResource = async (req: Request, res: Response) => {
     try {
         const id = Number(req.params.id);
-        const { title, description, url, category } = req.body;
+        const { title, description, url, category, tags } = req.body;
 
         const existing = await prisma.resource.findUnique({ where: { id } });
         if (!existing) return res.status(404).json({ message: "Resource not found" });
@@ -82,6 +108,15 @@ export const updateResource = async (req: Request, res: Response) => {
                 ...(description !== undefined && { description }),
                 ...(url !== undefined && { url }),
                 ...(category !== undefined && { category }),
+                ...(tags !== undefined && Array.isArray(tags) && {
+                    tags: {
+                        set: [], // Clear existing tags
+                        connectOrCreate: tags.map((tag: string) => ({
+                            where: { name: tag },
+                            create: { name: tag },
+                        })),
+                    },
+                }),
             },
             select: resourceSelect,
         });

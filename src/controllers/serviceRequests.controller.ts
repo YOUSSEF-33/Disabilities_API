@@ -6,24 +6,54 @@ const requestSelect = {
     title: true,
     description: true,
     status: true,
+    isUrgent: true,
+    latitude: true,
+    longitude: true,
     createdAt: true,
     updatedAt: true,
     user: { select: { id: true, firstName: true, lastName: true, email: true } },
     volunteer: { select: { id: true, firstName: true, lastName: true, email: true } },
 };
 
+// ─── Get Urgent Service Requests ──────────────────────────────────────────────
+export const getUrgentServiceRequests = async (req: Request, res: Response) => {
+    try {
+        const page = Math.max(Number(req.query.page) || 1, 1);
+        const limit = Math.min(Number(req.query.limit) || 10, 100);
+        const skip = (page - 1) * limit;
+
+        const where = { status: "PENDING" as any, isUrgent: true };
+
+        const [requests, total] = await Promise.all([
+            prisma.serviceRequest.findMany({ where, skip, take: limit, select: requestSelect, orderBy: { createdAt: "desc" } }),
+            prisma.serviceRequest.count({ where }),
+        ]);
+
+        res.json({ data: requests, meta: { page, limit, total, totalPages: Math.ceil(total / limit) } });
+    } catch (error) {
+        res.status(500).json({ message: "Failed to get urgent service requests", error });
+    }
+};
+
 // ─── Create Service Request ───────────────────────────────────────────────────
 export const createServiceRequest = async (req: Request, res: Response) => {
     try {
         const userId = req.user.id;
-        const { title, description } = req.body;
+        const { title, description, isUrgent, latitude, longitude } = req.body;
 
         if (!title || !description) {
             return res.status(400).json({ message: "title and description are required" });
         }
 
         const request = await prisma.serviceRequest.create({
-            data: { title, description, userId },
+            data: {
+                title,
+                description,
+                userId,
+                isUrgent: isUrgent ?? false,
+                latitude: latitude ? parseFloat(latitude) : null,
+                longitude: longitude ? parseFloat(longitude) : null
+            },
             select: requestSelect,
         });
 
